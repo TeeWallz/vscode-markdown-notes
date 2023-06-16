@@ -7,6 +7,11 @@ import { NoteWorkspace } from './NoteWorkspace';
 
 const RETURN_TYPE_VSCODE = 'vscode';
 
+type NoteTitle = {
+  text: string;
+  line: number;
+  contextLine: number; // line number after all empty lines
+};
 type RawPosition = {
   line: number;
   character: number;
@@ -43,6 +48,8 @@ class RefCandidate {
       return this.rawText == `#${ref.word}`;
     } else if (ref.type == RefType.WikiLink) {
       return NoteWorkspace.noteNamesFuzzyMatchText(this.rawText, ref.word);
+    } else if (ref.type == RefType.Hyperlink) {
+      return NoteWorkspace.noteNamesFuzzyMatchHyperlinks(this.rawText, ref.word);
     }
     return false;
   }
@@ -57,11 +64,7 @@ export class Note {
   fsPath: string;
   data: string | undefined;
   refCandidates: Array<RefCandidate> = [];
-  title: {
-    text: string;
-    line: number;
-    contextLine: number; // line number after all empty lines
-  } | undefined;
+  title: NoteTitle | undefined;
   private _parsed: boolean = false;
   constructor(fsPath: string) {
     this.fsPath = fsPath;
@@ -130,7 +133,8 @@ export class Note {
     let isSkip = false;
     let lines = this.data.split(/\r?\n/);
     lines.map((line, lineNum) => {
-      if (isSkip) { // ! skip all empty lines after title `# title`
+      if (isSkip) {
+        // ! skip all empty lines after title `# title`
         if (line.trim() == '') {
           that.title!.contextLine = lineNum;
         } else {
@@ -142,20 +146,22 @@ export class Note {
           that.title = {
             text: '# ' + match[0].trim(),
             line: lineNum,
-            contextLine: lineNum
+            contextLine: lineNum,
           };
           searchTitle = false; // * only search for the first # h1
           isSkip = true;
         });
       }
-      Array.from(line.matchAll(NoteWorkspace.rxTagNoAnchors())).map((match) => {
-
+      Array.from(line.matchAll(NoteWorkspace.rxTag())).map((match) => {
         that.refCandidates.push(RefCandidate.fromMatch(lineNum, match, RefType.Tag));
       });
       Array.from(line.matchAll(NoteWorkspace.rxWikiLink()) || []).map((match) => {
         // console.log('match tag', that.fsPath, lineNum, match);
 
         that.refCandidates.push(RefCandidate.fromMatch(lineNum, match, RefType.WikiLink));
+      });
+      Array.from(line.matchAll(NoteWorkspace.rxMarkdownHyperlink())).map((match) => {
+          that.refCandidates.push(RefCandidate.fromMatch(lineNum, match, RefType.Hyperlink));
       });
     });
     // console.debug(`parsed ${this.fsPath}. refCandidates:`, this.refCandidates);
@@ -178,7 +184,7 @@ export class Note {
     if (!ref) {
       return [];
     }
-    if (![RefType.Tag, RefType.WikiLink].includes(ref.type)) {
+    if (![RefType.Tag, RefType.WikiLink, RefType.Hyperlink].includes(ref.type)) {
       return [];
     }
     return this.refCandidates.filter((c) => c.matchesContextWord(ref)).map((c) => c.range);
@@ -207,18 +213,22 @@ export class Note {
   // completionItem.documentation ()
   documentation(): string | vscode.MarkdownString | undefined {
     if (this.data === undefined) {
-      return "";
+      return '';
     } else {
       let data = this.data;
-      if (this.title) { // get the portion of the note after the title
-        data = this.data.split(/\r?\n/).slice(this.title.contextLine + 1).join('\n');
+      if (this.title) {
+        // get the portion of the note after the title
+        data = this.data
+          .split(/\r?\n/)
+          .slice(this.title.contextLine + 1)
+          .join('\n');
       }
       if (NoteWorkspace.compileSuggestionDetails()) {
         try {
           let result = new vscode.MarkdownString(data);
           return result;
         } catch (error) {
-          return "";
+          return '';
         }
       } else {
         return data;
@@ -246,9 +256,9 @@ export class NoteParser {
     return Array.from(new Set(_tags));
   }
 
-  static async searchBacklinksFor(fileBasename: string): Promise<vscode.Location[]> {
+  static async searchBacklinksFor(fileBasename: string, refType: RefType): Promise<vscode.Location[]> {
     let ref: Ref = {
-      type: RefType.WikiLink,
+      type: refType,
       hasExtension: true,
       word: fileBasename,
       range: undefined,
@@ -305,6 +315,8 @@ export class NoteParser {
       query = `#${ref.word}`;
     } else if (ref.type == RefType.WikiLink) {
       query = `[[${basename(ref.word)}]]`;
+    } else if (ref.type == RefType.Hyperlink) {
+      query = `](${basename(ref.word)})`;
     } else {
       return [];
     }

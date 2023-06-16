@@ -1,5 +1,99 @@
 # Changelog
 
+## [v0.0.27](https://github.com/kortina/vscode-markdown-notes/releases/edit/v0.0.26) (2023-04-30)
+
+**Fixes:**
+
+- #108 and #186 - fix ENOENT 'rendererLog' by ensuring active document is (1) not untitled and (2) not rendererLog when performing operations on change that require a path on the fs
+- dependabot updates
+
+**Diff:**
+
+https://github.com/kortina/vscode-markdown-notes/compare/64be797..38bc07c4cc
+
+## [v0.0.26](https://github.com/kortina/vscode-markdown-notes/releases/edit/v0.0.26) (2023-03-05)
+
+**Enhancements:**
+
+- #161 - use `vscode` instead of `fs` to create new files - tx @higab85
+- cleanup the docs / jest testing utils
+- merge dependabot updates
+
+**Diff:**
+
+https://github.com/kortina/vscode-markdown-notes/compare/1911feb..64be797
+
+## [v0.0.25](https://github.com/kortina/vscode-markdown-notes/releases/edit/v0.0.25) (2022-11-28)
+
+**Enhancements:**
+
+- #158 - nested tag syntax highlighting - tx @me-matt
+- #146 - fix typo in error message - tx @movermeyer
+- #152 - fix BibTex citations - tx @josephgarnier
+- merge dependabot updates
+
+**Diff:**
+
+https://github.com/kortina/vscode-markdown-notes/compare/3fa7d914..1911feb
+
+## [v0.0.24](https://github.com/kortina/vscode-markdown-notes/releases/edit/v0.0.24) (2021-03-22)
+
+**Enhancements:**
+
+- Distinguish unpiped from piped wikilinks, `text.markdown.notes.wiki-link.unpiped` from `text.markdown.notes.wiki-link.piped`. For piped, allow different color and formatting for `support.function.text.markdown.notes.wiki-link.title.first` vs `.second` - tx @mrgutkun. Re: #102.
+
+**Diff:**
+
+https://github.com/kortina/vscode-markdown-notes/compare/3c586476..3c4661c5
+
+## [v0.0.23](https://github.com/kortina/vscode-markdown-notes/releases/edit/v0.0.23) (2021-03-02)
+
+**Diff:**
+
+https://github.com/kortina/vscode-markdown-notes/compare/cc4f56ec..3fa7d914
+
+**Enhancements:**
+
+- #126 - show Backlinks in the Panel when files link to the current document using a standard markdown hyperlink - tx @thomaskoppelaar. Closes #46.
+- #124 - support Pandoc-style BibTeX citations with syntax highlighting, autocompletion based on a global `.bib` file, and Peek / Go To Definition - tx @Anderas.
+
+**Fixes:**
+
+- #128 - improve tooltip accessibility. Closes #67.
+
+**Diff:**
+
+https://github.com/kortina/vscode-markdown-notes/compare/cc4f56ec..3fa7d914
+
+## [v0.0.22](https://github.com/kortina/vscode-markdown-notes/releases/edit/v0.0.22) (2021-01-24)
+
+**Fixes:**
+
+- #117 - add collapse all button to backlinks view - tx @MCluck90
+- #119 - improve tag recognition, Chinese character support using `\p{L}` instead of `\w` - tx @thomaskoppelaar, @frankreporting. Closes #114, #115.
+- upgrade `jest` deps to resolve depandabot alerts
+- #122 - return all suggestions on 'empty' `#` and `[[`. Closes #99.
+- #123 - allow linking to `txt` files - tx @thomaskoppelaar. Closes #107.
+
+**Diff:**
+
+https://github.com/kortina/vscode-markdown-notes/compare/311dda9..b7660f6
+
+## [v0.0.21](https://github.com/kortina/vscode-markdown-notes/releases/edit/v0.0.21) (2020-12-01)
+
+**Enhancements:**
+
+- #96 option to disable lower-casing of file names - tx @mgmeyers
+- #95 `vscodeMarkdownNotes.newNoteFromSelection` which will "cut" the selected text from the current document, prompt for a note name, create a new note with that name, and insert the new text into that note. tx @mgmeyers
+
+**Fixes:**
+
+- #104 package missing markdown it dependency in production build - tx @Lemmingh
+
+**Diff:**
+
+https://github.com/kortina/vscode-markdown-notes/compare/431084c..4d315eb
+
 ## [v0.0.20](https://github.com/kortina/vscode-markdown-notes/releases/edit/v0.0.20) (2020-09-22)
 
 **Fixes:**
@@ -10,7 +104,7 @@
 
 **Diff:**
 
-https://github.com/kortina/vscode-markdown-notes/compare/4326868eca031f52d79b0d779347daadc57bbaea..a4e63d4fe734aca5025a707e7b1939efefd578d3
+https://github.com/kortina/vscode-markdown-notes/compare/4326868..a4e63d4fe734aca5025a707e7b1939efefd578d3
 
 ## [v0.0.19](https://github.com/kortina/vscode-markdown-notes/releases/edit/v0.0.19) (2020-09-17)
 
@@ -149,7 +243,7 @@ Many bugfixes from [foam](https://github.com/foambubble/foam) community.
 **Fixes:**
 
 - fix bug where extension functionality would not work when editing files with language `mdx`. #51 closes #45
-- fix bug where `[[Link/Topic]]` would not correctly find note namec `link-topic.md`. tx to @eBerdnA for #52 closes #50
+- fix bug where `[[Link/Topic]]` would not correctly find note name `link-topic.md`. tx to @eBerdnA for #52 closes #50
 - fix bug where all non-ASCII word characters would be replaced with `-` characters. tx to @digiguru for #53 closes #47
 
 **Diff:**
@@ -262,7 +356,7 @@ Tx all for being part of discussion leading up to this release.
 
 **Fixes:**
 
-- typo `markdwon` was causing extension not to work for `.markdown` files (it would only work for `.md` files).
+- typo misspelling markdown was causing extension not to work for `.markdown` files (it would only work for `.md` files).
 
 ## [v0.0.2](https://github.com/kortina/vscode-markdown-notes/releases/tag/v0.0.2) (2020-02-22)
 

@@ -26,11 +26,17 @@ A popular feature in [Roam Research](https://roamresearch.com/) and [Bear](https
 
 By default, the extension assumes each markdown file in a workspace has a unique name, so that `note.md` will resolve to the file with this name, regardless of whether or not this file exists in any subdirectory path. This tends to be a bit cleaner, but if you want support for multiple files with the same name, in `settings.json` set `"vscodeMarkdownNotes.workspaceFilenameConvention": "relativePaths"`, and you'll get completions like `note1/note.md` and `../note2/note.md`.
 
+You can configure piped wiki-link syntax to use either `[[file|description]]`, or `[[description|file]]` format (to show pretty titles instead of filenames in your rendered HTML).
+
 ### #tags
 
 Syntax highlighting for `#tags`.
 
-### New Note command
+### @bibtex-citations
+
+Use [pandoc-style](https://pandoc.org/MANUAL.html#extension-citations) citations in your notes (eg `@author_title_year`) to get syntax highlighting, autocompletion and go to definition, if you setup a global [BibTeX file](http://www.bibtex.org/Format/) with your references.
+
+### New Note Command
 
 Provides a command for quickly creating a new note.
 
@@ -42,6 +48,8 @@ You can bind this to a keyboard shortcut by adding to your `keybindings.json`:
         "command": "vscodeMarkdownNotes.newNote",
     },
 ```
+
+NB: there is also a command `vscodeMarkdownNotes.newNoteFromSelection` which will "cut" the selected text from the current document, prompt for a note name, create a new note with that name, and insert the new text into that note.
 
 ### New ID command
 
@@ -70,6 +78,10 @@ You can bind this to a keyboard shortcut by adding to your `keybindings.json`:
 
 ![completion-relative-paths](demo/completion-relative-paths.gif)
 
+#### Intellisense Completion for BibTeX Citations
+
+![citations-completion](demo/citations-completion.png)
+
 ### Backlinks Explorer Panel
 
 ![backlinks](demo/backlinks.gif)
@@ -90,6 +102,10 @@ You can bind this to a keyboard shortcut by adding to your `keybindings.json`:
 
 ![peek-references-tag](demo/peek-references-tag.png)
 
+#### Peek Definition for BibTeX Citations
+
+![citations-definition](demo/citations-peek-definition.png)
+
 #### Find All References to Wiki Links
 
 ![find-all-references-wiki-link](demo/find-all-references-wiki-link.png)
@@ -102,9 +118,17 @@ You can bind this to a keyboard shortcut by adding to your `keybindings.json`:
 
 ![tag-search](demo/tag-search.gif)
 
+### Piped Wiki Link Support
+
+![piped-wiki-link](demo/piped-wiki-link.png)
+
 #### New Note Command
 
 ![new-note-command](demo/new-note-command.gif)
+
+#### New Note from Selection Command
+
+![new-note-from-selection-command](demo/new-note-from-selection-command.gif)
 
 ## dev
 
@@ -136,7 +160,7 @@ to run only the test at that line. NB, you will also need [these bindings](https
 To run all tests,
 
 ```sh
-npx jest
+npm run test
 ```
 
 All tests are headless.

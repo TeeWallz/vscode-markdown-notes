@@ -1,9 +1,9 @@
 {
   "name": "vscode-zettel-markdown-notes",
-  "displayName": "Markdown Notes (Zettelkasten Remix)",
-  "description": "Navigate notes with [[wiki-links]], backlinks, and #tags (like Bear, Roam, etc). Automatically create notes from new inline [[wiki-links]]. Use Peek Definition to preview linked notes.",
-  "version": "1.0.0",
-  "publisher": "maxedmands",
+  "displayName": "Markdown Notes (Zettelkasten Redux)",
+  "description": "Navigate notes with [[wiki-links]], backlinks, #tags and @bibtex-citations (like Bear, Roam, etc). Automatically create notes from new inline [[wiki-links]]. Use Peek Definition to preview linked notes.",
+  "version": "1.0.1",
+  "publisher": "teewallz",
   "repository": {
     "url": "https://github.com/maxedmands/vscode-markdown-notes",
     "type": "git"
@@ -47,6 +47,10 @@
       {
         "command": "vscodeMarkdownNotes.newNote",
         "title": "Markdown Notes: New Note"
+      },
+      {
+        "command": "vscodeMarkdownNotes.newNoteFromSelection",
+        "title": "Markdown Notes: New Note From Selection"
       },
       {
         "command": "vscodeMarkdownNotes.notesForWikiLink",
@@ -118,6 +122,16 @@
           "default": "# ${noteName}\n\n",
           "description": "Template for auto-created note files. Available tokens: ${noteName}, ${timestamp}. Timestamp is inserted in ISO format, i.e. 2020-07-09T05:29:00.541Z."
         },
+        "vscodeMarkdownNotes.newNoteFromSelectionReplacementTemplate": {
+          "type": "string",
+          "default": "[[${wikiLink}]]",
+          "description": "After the selection is 'cut' from the active document, replacement text is 'inserted' into its place. Available tokens: ${wikiLink}, ${noteName}. The default insertion is a wiki-link to the new note containing the selected text."
+        },
+        "vscodeMarkdownNotes.lowercaseNewNoteFilenames": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true, new note file names will be converted to lowercase. Otherwise, the case will be preserved. Eg: my-new-note.md vs. My-New-Note.md"
+        },
         "vscodeMarkdownNotes.compileSuggestionDetails": {
           "type": "boolean",
           "default": false,
@@ -163,6 +177,11 @@
             "label"
           ],
           "description": "Changes how the link to a file should be shown, either with or without brackets."
+        },
+        "vscodeMarkdownNotes.bibtexFilePath": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute or current workspace relative path to a BibTeX file that will provide autocompletion for @bibtex-citations."
         }
       }
     },
@@ -181,24 +200,23 @@
   ],
   "main": "./out/extension.js",
   "scripts": {
-    "compile": "tsc -p ./",
-    "jest": "jest",
+    "compile": "./node_modules/.bin/tsc -p ./",
     "lint": "eslint -c .eslintrc.js --ext .ts src",
     "pretest": "npm run compile",
-    "test": "jest",
+    "test": "./node_modules/.bin/jest",
     "vpackage": "./node_modules/.bin/vsce package",
     "vpublish": "./node_modules/.bin/vsce publish",
     "vscode:prepublish": "npm run compile",
     "watch": "tsc -watch -p ./"
   },
   "dependencies": {
+    "@thomaskoppelaar/markdown-it-wikilinks": "^1.3.0",
     "github-slugger": "^1.3.0"
   },
   "devDependencies": {
     "@babel/core": "^7.10.1",
     "@babel/preset-env": "^7.10.1",
     "@babel/preset-typescript": "^7.10.1",
-    "babel-jest": "^26.0.1",
     "@types/github-slugger": "^1.3.0",
     "@types/glob": "^7.1.1",
     "@types/jest": "^25.2.3",
@@ -207,21 +225,21 @@
     "@types/vscode": "^1.32.0",
     "@typescript-eslint/eslint-plugin": "^2.28.0",
     "@typescript-eslint/parser": "^2.28.0",
+    "babel-jest": "^26.6.3",
     "babylon": "^6.18.0",
     "eslint": "^6.8.0",
     "glob": "^7.1.4",
-    "jest": "^26.0.1",
-    "jest-cli": "^26.0.1",
-    "remark": "^12.0.0",
+    "jest": "^26.6.3",
+    "jest-cli": "^26.6.3",
+    "remark": "^14.0.2",
     "remark-wiki-link": "^0.0.4",
     "source-map-support": "^0.5.12",
-    "ts-jest": "^26.0.0",
+    "ts-jest": "^26.4.4",
     "typescript": "^3.8.3",
     "unified": "^9.0.0",
-    "unist-util-find": "^1.0.1",
+    "unist-util-find": "^1.0.2",
     "unist-util-visit": "^2.0.2",
-    "@thomaskoppelaar/markdown-it-wikilinks": "1.3.0",
-    "vsce": "^1.75.0",
-    "vscode-test": "^1.3.0"
+    "@vscode/vsce": "^2.19.0",
+    "@vscode/test-electron": "^2.3.3"
   }
 }

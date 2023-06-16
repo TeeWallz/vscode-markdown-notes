@@ -3,17 +3,21 @@ A `Ref` is a match for:
 
 - a [[wiki-link]]
 - a #tag
+- a @bibtex-citations
 
 in the content of a Note document in your workspace.
 
 */
 import * as vscode from 'vscode';
+import { BibTeXCitations } from './BibTeXCitations';
 import { NoteWorkspace } from './NoteWorkspace';
 
 export enum RefType {
   Null, // 0
   WikiLink, // 1
   Tag, // 2
+  Hyperlink, // 3
+  BibTeX, // 4
 }
 
 export interface Ref {
@@ -40,13 +44,19 @@ export const NULL_REF = {
   range: undefined,
 };
 
+/*
+NB: only returns for non-empty refs, eg,
+  [[l]] #t or @b
+but not
+  [[ [[]] # b@ or @
+*/
 export function getRefAt(document: vscode.TextDocument, position: vscode.Position): Ref {
   let ref: string;
   let regex: RegExp;
   let range: vscode.Range | undefined;
 
   // #tag regexp
-  regex = NoteWorkspace.rxTagNoAnchors();
+  regex = NoteWorkspace.rxTag();
   range = document.getWordRangeAtPosition(position, regex);
   if (range) {
     // here we do nothing to modify the range because the replacements
@@ -87,7 +97,98 @@ export function getRefAt(document: vscode.TextDocument, position: vscode.Positio
     };
   }
 
+  regex = NoteWorkspace.rxMarkdownHyperlink();
+  range = document.getWordRangeAtPosition(position, regex);
+  if (range) {
+    ref = document.getText(range);
+    // remove the [description] from the hyperlink
+    ref = ref.replace(/\[[^\[\]]*\]/, '');
+
+    // remove the () surrounding the link
+    ref = ref.replace(/\(|\)/g, '');
+
+    // e.g. [desc](link.md) gets turned into link.md
+
+    return {
+      type: RefType.Hyperlink,
+      word: ref,
+      hasExtension: refHasExtension(ref),
+      range: range,
+    };
+  }
+
+  if (BibTeXCitations.isBibtexFileConfigured()) {
+    regex = BibTeXCitations.rxBibTeX();
+    range = document.getWordRangeAtPosition(position, regex);
+    if (range) {
+      ref = document.getText(range);
+      if (ref) {
+        return {
+          type: RefType.BibTeX,
+          word: ref.replace(/^\@+/, ''),
+          hasExtension: null,
+          range: range,
+        };
+      }
+    }
+  }
+
   return NULL_REF;
+}
+
+/* 
+Similar to getRefAt, but handles the 'empty' Ref cases,
+  [[ and # and @
+    ^     ^     ^
+when they are not followed by any letter chars.
+Returns a Ref with the correct type and 0 length range.
+*/
+export function getEmptyRefAt(document: vscode.TextDocument, position: vscode.Position): Ref {
+  // we still need to handle the case where we have the cursor
+  // directly after [[ chars with NO letters after the [[
+  let c = Math.max(0, position.character - 2); // 2 chars left, unless we are at the 0 or 1 char
+  let s = new vscode.Position(position.line, c);
+  let searchRange = new vscode.Range(s, position);
+  let precedingChars = document.getText(searchRange);
+
+  if (precedingChars == '[[') {
+    return {
+      type: RefType.WikiLink,
+      word: '', // just use empty string
+      hasExtension: false,
+      // we DO NOT want the replacement position to include the brackets:
+      range: new vscode.Range(position, position),
+    };
+  }
+  if (precedingChars == '@') {
+    return {
+      type: RefType.BibTeX,
+      word: '', // just use empty string
+      hasExtension: false,
+      // we DO NOT want the replacement position to include the @:
+      range: new vscode.Range(position, position),
+    };
+  }
+  let regex = NoteWorkspace.rxBeginTag();
+  if (precedingChars.match(regex)) {
+    return {
+      type: RefType.Tag,
+      word: '', // just use empty string
+      hasExtension: false,
+      // we DO want the replacement position to include the #:
+      range: new vscode.Range(position.translate(0, -1), position),
+    };
+  }
+
+  return NULL_REF;
+}
+
+export function getRefOrEmptyRefAt(document: vscode.TextDocument, position: vscode.Position): Ref {
+  let ref = getRefAt(document, position);
+  if (ref.type == RefType.Null) {
+    ref = getEmptyRefAt(document, position);
+  }
+  return ref;
 }
 
 export const refHasExtension = (word: string): boolean => {

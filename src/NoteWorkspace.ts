@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { basename, dirname, isAbsolute, join, normalize, relative } from 'path';
-import { existsSync, writeFileSync } from 'fs';
+import { existsSync } from 'fs';
+import { TextEncoder } from 'util';
 import findNonIgnoredFiles from './findNonIgnoredFiles';
 import ZettelkastenUtilities from './ZettelkastenUtilities';
 const GithubSlugger = require('github-slugger');
@@ -51,6 +52,8 @@ type Config = {
   slugifyMethod: SlugifyMethod;
   workspaceFilenameConvention: WorkspaceFilenameConvention;
   newNoteTemplate: string;
+  newNoteFromSelectionReplacementTemplate: string;
+  lowercaseNewNoteFilenames: boolean;
   compileSuggestionDetails: boolean;
   triggerSuggestOnReplacement: boolean;
   allowPipedWikiLinks: boolean;
@@ -67,12 +70,15 @@ type Config = {
 export class NoteWorkspace {
   // Defining these as strings now, and then compiling them with accessor methods.
   // This will allow us to potentially expose these as settings.
-  static _rxTagNoAnchors = '\\#[\\w\\-\\_]+'; // used to match tags that appear within lines
-  static _rxTagWithAnchors = '^\\#[\\w\\-\\_]+$'; // used to match entire words
+  // Note for the future: \p{L} is used instead of \w , in order to match to all possible letters
+  // rather than just those from the latin alphabet.
+  static _rxTag = '(?<= |,|^)#[\\p{L}\\-_/]+'; // match # followed by a letter character
+  static _rxBeginTag = '(?<= |,|^)#'; // match # preceded by a space, comma, or newline, regardless of whether it is followed by a letter character
   static _rxWikiLink = '\\[\\[[^sep\\]]+(sep[^sep\\]]+)?\\]\\]|\\[\\[\\]\\]'; // [[wiki-link-regex(|with potential pipe)?]] Note: "sep" will be replaced with pipedWikiLinksSeparator on compile
   static _rxTitle = '(?<=^( {0,3}#[^\\S\\r\\n]+)).+';
-  static _rxMarkdownWordPattern = '([\\_\\w\\#\\.\\/\\\\]+)'; // had to add [".", "/", "\"] to get relative path completion working and ["#"] to get tag completion working
-  static _rxFileExtensions = '\\.(md|markdown|mdx|fountain)$';
+  static _rxMarkdownWordPattern = '([_\\p{L}\\d#\\.\\/\\\\]+)'; // had to add [".", "/", "\"] to get relative path completion working and ["#"] to get tag completion working
+  static _rxMarkdownHyperlink = '\\[[^\\[\\]]*\\]\\((?!https?)[^\\(\\)\\[\\] ]+\\)'; // [description](hyperlink-to-file.md), ensuring the link doesn't start with http(s)
+  static _rxFileExtensions = '\\.(md|markdown|mdx|fountain|txt)$';
   static SLUGIFY_NONE = 'NONE';
   static NEW_NOTE_SAME_AS_ACTIVE_NOTE = 'SAME_AS_ACTIVE_NOTE';
   static NEW_NOTE_WORKSPACE_ROOT = 'WORKSPACE_ROOT';
@@ -85,6 +91,8 @@ export class NoteWorkspace {
     slugifyMethod: SlugifyMethod.classic,
     workspaceFilenameConvention: WorkspaceFilenameConvention.uniqueFilenames,
     newNoteTemplate: '# ${noteName}\n\n',
+    newNoteFromSelectionReplacementTemplate: '[[${wikiLink}]]',
+    lowercaseNewNoteFilenames: true,
     triggerSuggestOnReplacement: true,
     allowPipedWikiLinks: false,
     pipedWikiLinksSyntax: PipedWikiLinksSyntax.fileDesc,
@@ -94,10 +102,8 @@ export class NoteWorkspace {
     previewShowFileExtension: false,
   };
   static DOCUMENT_SELECTOR = [
-    // { scheme: 'file', language: 'markdown' },
-    // { scheme: 'file', language: 'mdx' },
-    { language: 'markdown' },
-    { language: 'mdx' },
+    { scheme: 'file', language: 'markdown' },
+    { scheme: 'file', language: 'mdx' },
   ];
 
   // Cache object to store results from noteFiles() in order to provide a synchronous method to the preview renderer.
@@ -117,6 +123,10 @@ export class NoteWorkspace {
         'workspaceFilenameConvention'
       ) as WorkspaceFilenameConvention,
       newNoteTemplate: c.get('newNoteTemplate') as string,
+      newNoteFromSelectionReplacementTemplate: c.get(
+        'newNoteFromSelectionReplacementTemplate'
+      ) as string,
+      lowercaseNewNoteFilenames: c.get('lowercaseNewNoteFilenames') as boolean,
       compileSuggestionDetails: c.get('compileSuggestionDetails') as boolean,
       triggerSuggestOnReplacement: c.get('triggerSuggestOnReplacement') as boolean,
       allowPipedWikiLinks: c.get('allowPipedWikiLinks') as boolean,
@@ -142,6 +152,14 @@ export class NoteWorkspace {
 
   static newNoteTemplate(): string {
     return this.cfg().newNoteTemplate;
+  }
+
+  static newNoteFromSelectionReplacementTemplate(): string {
+    return this.cfg().newNoteFromSelectionReplacementTemplate;
+  }
+
+  static lowercaseNewNoteFilenames(): boolean {
+    return this.cfg().lowercaseNewNoteFilenames;
   }
 
   static triggerSuggestOnReplacement() {
@@ -172,19 +190,16 @@ export class NoteWorkspace {
     return this.cfg().previewShowFileExtension;
   }
 
-  static rxTagNoAnchors(): RegExp {
+  static rxTag(): RegExp {
     // NB: MUST have g flag to match multiple words per line
-    // return /\#[\w\-\_]+/i; // used to match tags that appear within lines
-    return new RegExp(this._rxTagNoAnchors, 'gi');
+    return new RegExp(this._rxTag, 'gui');
   }
-  static rxTagWithAnchors(): RegExp {
-    // NB: MUST have g flag to match multiple words per line
-    // return /^\#[\w\-\_]+$/i; // used to match entire words
-    return new RegExp(this._rxTagWithAnchors, 'gi');
+  static rxBeginTag(): RegExp {
+    return new RegExp(this._rxBeginTag, 'gui');
   }
+
   static rxWikiLink(): RegExp {
     // NB: MUST have g flag to match multiple words per line
-    // return /\[\[[\w\.\-\_\/\\]+/i; // [[wiki-link-regex
     this._rxWikiLink = this._rxWikiLink.replace(/sep/g, NoteWorkspace.pipedWikiLinksSeparator());
     return new RegExp(this._rxWikiLink, 'gi');
   }
@@ -192,12 +207,15 @@ export class NoteWorkspace {
     return new RegExp(this._rxTitle, 'gi');
   }
   static rxMarkdownWordPattern(): RegExp {
-    // return /([\#\.\/\\\w_]+)/; // had to add [".", "/", "\"] to get relative path completion working and ["#"] to get tag completion working
-    return new RegExp(this._rxMarkdownWordPattern);
+    return new RegExp(this._rxMarkdownWordPattern, 'u');
   }
   static rxFileExtensions(): RegExp {
     // return noteName.replace(/\.(md|markdown|mdx|fountain)$/i, '');
     return new RegExp(this._rxFileExtensions, 'i');
+  }
+
+  static rxMarkdownHyperlink(): RegExp {
+    return new RegExp(this._rxMarkdownHyperlink, 'gi');
   }
 
   static wikiLinkCompletionForConvention(
@@ -284,6 +302,7 @@ export class NoteWorkspace {
   static normalizeNoteNameForFuzzyMatchText(noteName: string): string {
     // remove the brackets:
     let n = noteName.replace(/[\[\]]/g, '');
+
     // remove the potential description:
     n = this.cleanPipedWikiLink(n);
     // remove the extension:
@@ -293,6 +312,19 @@ export class NoteWorkspace {
     return n;
   }
 
+  // compare a hyperlink to a filename for a fuzzy match.
+  // `left` is the ref word, `right` is the file name
+  static noteNamesFuzzyMatchHyperlinks(left: string, right: string): boolean {
+    // strip markdown link syntax; remove the [description]
+    left = left.replace(/\[[^\[\]]*\]/g, '');
+    // and the () surrounding the link
+    left = left.replace(/\(|\)/g, '');
+
+    return (
+      this.normalizeNoteNameForFuzzyMatch(left).toLowerCase() ==
+      this.normalizeNoteNameForFuzzyMatchText(right).toLowerCase()
+    );
+  }
   // Compare 2 wiki-links for a fuzzy match.
   // In general, we expect
   // `left` to be fsPath
@@ -316,9 +348,10 @@ export class NoteWorkspace {
   }
 
   static cleanTitle(title: string): string {
-    return title
-      .toLowerCase() // lower
-      .replace(/[-_－＿ ]*$/g, ''); // removing trailing slug chars
+    const caseAdjustedTitle = this.lowercaseNewNoteFilenames() ? title.toLowerCase() : title;
+
+    // removing trailing slug chars
+    return caseAdjustedTitle.replace(/[-_－＿ ]*$/g, '');
   }
 
   static slugifyClassic(title: string): string {
@@ -348,21 +381,25 @@ export class NoteWorkspace {
     return fullTitle.match(this.rxFileExtensions()) ? fullTitle : `${fullTitle}.${this.defaultFileExtension()}`;
   }
 
-  static newNote(context: vscode.ExtensionContext) {
-    // console.debug('newNote');
-    const inputBoxPromise = vscode.window.showInputBox({
+  static showNewNoteInputBox() {
+    return vscode.window.showInputBox({
       prompt:
         "Enter a 'Title Case Name' to create `newid-title-case-name.md` with '# Title Case Name' at the top.",
       value: '',
     });
+  }
+
+  static newNote(context: vscode.ExtensionContext) {
+    // console.debug('newNote');
+    const inputBoxPromise = NoteWorkspace.showNewNoteInputBox();
 
     inputBoxPromise.then(
-      (noteName) => {
+      async (noteName) => {
         if (noteName == null || !noteName || noteName.replace(/\s+/g, '') == '') {
           // console.debug('Abort: noteName was empty.');
           return false;
         }
-        const { filepath, fileAlreadyExists } = NoteWorkspace.createNewNoteFile(noteName);
+        const { filepath, fileAlreadyExists } = await NoteWorkspace.createNewNoteFile(noteName);
 
         // open the file:
         vscode.window
@@ -371,13 +408,13 @@ export class NoteWorkspace {
             preview: false,
           })
           .then(() => {
-            // if we created a new file, hop to line #3
+            // if we created a new file, place the selection at the end of the last line of the template
             if (!fileAlreadyExists) {
               let editor = vscode.window.activeTextEditor;
               if (editor) {
-                const lineNumber = 3;
-                let range = editor.document.lineAt(lineNumber - 1).range;
-                editor.selection = new vscode.Selection(range.start, range.end);
+                const lineNumber = editor.document.lineCount;
+                const range = editor.document.lineAt(lineNumber - 1).range;
+                editor.selection = new vscode.Selection(range.end, range.end);
                 editor.revealRange(range);
               }
             }
@@ -389,7 +426,87 @@ export class NoteWorkspace {
     );
   }
 
-  static createNewNoteFile(noteTitle: string) {
+  static newNoteFromSelection(context: vscode.ExtensionContext) {
+    const originEditor = vscode.window.activeTextEditor;
+
+    if (!originEditor) {
+      // console.debug('Abort: no active editor');
+      return;
+    }
+    const { selection } = originEditor;
+    const noteContents = originEditor.document.getText(selection);
+    const originSelectionRange = new vscode.Range(selection.start, selection.end);
+
+    if (noteContents === '') {
+      vscode.window.showErrorMessage('Error creating note from selection: selection is empty.');
+      return;
+    }
+
+    // console.debug('newNote');
+    const inputBoxPromise = NoteWorkspace.showNewNoteInputBox();
+
+    inputBoxPromise.then(
+      async (noteName) => {
+        if (noteName == null || !noteName || noteName.replace(/\s+/g, '') == '') {
+          // console.debug('Abort: noteName was empty.');
+          return false;
+        }
+        const { filepath, fileAlreadyExists } = await NoteWorkspace.createNewNoteFile(noteName);
+        const destinationUri = vscode.Uri.file(filepath);
+
+        // open the file:
+        vscode.window
+          .showTextDocument(destinationUri, {
+            preserveFocus: false,
+            preview: false,
+          })
+          .then(() => {
+            if (!fileAlreadyExists) {
+              const destinationEditor = vscode.window.activeTextEditor;
+              if (destinationEditor) {
+                // Place the selection at the end of the last line of the template
+                const lineNumber = destinationEditor.document.lineCount;
+                const range = destinationEditor.document.lineAt(lineNumber - 1).range;
+                destinationEditor.selection = new vscode.Selection(range.end, range.end);
+                destinationEditor.revealRange(range);
+
+                // Insert the selected content in to the new file
+                destinationEditor.edit((edit) => {
+                  if (destinationEditor) {
+                    if (range.start.character === range.end.character) {
+                      edit.insert(destinationEditor.selection.end, noteContents);
+                    } else {
+                      // If the last line is not empty, insert the note contents on a new line
+                      edit.insert(destinationEditor.selection.end, '\n\n' + noteContents);
+                    }
+                  }
+                });
+
+                // Replace the selected content in the origin file with a wiki-link to the new file
+                const edit = new vscode.WorkspaceEdit();
+                const wikiLink = NoteWorkspace.wikiLinkCompletionForConvention(
+                  destinationUri,
+                  originEditor.document
+                );
+
+                edit.replace(
+                  originEditor.document.uri,
+                  originSelectionRange,
+                  NoteWorkspace.selectionReplacementContent(wikiLink, noteName)
+                );
+
+                vscode.workspace.applyEdit(edit);
+              }
+            }
+          });
+      },
+      (err) => {
+        vscode.window.showErrorMessage('Error creating new note.');
+      }
+    );
+  }
+
+  static async createNewNoteFile(noteTitle: string) {
     let workspacePath = '';
     if (vscode.workspace.workspaceFolders) {
       workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath.toString();
@@ -404,7 +521,7 @@ export class NoteWorkspace {
         noteDirectory = activePath;
       } else {
         vscode.window.showWarningMessage(
-          `Error. newNoteDirectory was NEW_NOTE_SAME_AS_ACTIVE_NOTE but no active note directory found. Using WORKSPACE_ROOT.`
+          `Error. newNoteDirectory was NEW_NOTEE_SAME_AS_ACTIVE_NOTE but no active note directory found. Using WORKSPACE_ROOT.`
         );
         noteDirectory = this.NEW_NOTE_WORKSPACE_ROOT;
       }
@@ -437,14 +554,14 @@ export class NoteWorkspace {
     const filepath = join(noteDirectory, filename);
 
     const fileAlreadyExists = existsSync(filepath);
-    if (fileAlreadyExists) {
-      vscode.window.showWarningMessage(
-        `Error creating note, file at path already exists: ${filepath}`
-      );
-    } else {
+    if (!fileAlreadyExists) {
       // create the file if it does not exist
       const contents = NoteWorkspace.newNoteContent(noteTitle, zettelId);
-      writeFileSync(filepath, contents);
+      const edit = new vscode.WorkspaceEdit();
+      const fileUri = vscode.Uri.file(filepath);
+      edit.createFile(fileUri);
+      await vscode.workspace.applyEdit(edit);
+      await vscode.workspace.fs.writeFile(fileUri, new TextEncoder().encode(contents));
     }
 
     return {
@@ -463,6 +580,15 @@ export class NoteWorkspace {
       .replace(/\$\{timestamp\}/g, t)
       .replace(/\$\{date\}/g, d)
       .replace(/\$\{ID\}/g, zettelId);
+    return contents;
+  }
+
+  static selectionReplacementContent(wikiLink: string, noteName: string) {
+    const template = NoteWorkspace.newNoteFromSelectionReplacementTemplate();
+    const contents = template
+      .replace(/\$\{wikiLink\}/g, wikiLink)
+      .replace(/\$\{noteName\}/g, noteName);
+
     return contents;
   }
 

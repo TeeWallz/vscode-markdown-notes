@@ -3,6 +3,7 @@ import { foo, NoteWorkspace, PipedWikiLinksSyntax, SlugifyMethod } from '../../N
 import { titleCaseFromFilename } from '../../utils';
 import { Note } from '../../NoteParser';
 import { RefType } from '../../Ref';
+import { BibTeXCitations } from '../../BibTeXCitations';
 // import { config } from 'process';
 
 jest.mock('../../NoteWorkspace');
@@ -23,6 +24,11 @@ beforeEach(() => {
   NoteWorkspace.cfg = () => {
     return NoteWorkspace.DEFAULT_CONFIG;
   };
+  BibTeXCitations.cfg = () => {
+    return {
+      bibTeXFilePath: "test/library.bib"
+    };
+  };
 });
 
 test('foo', () => {
@@ -38,25 +44,35 @@ describe('NoteWorkspace.slug', () => {
   });
 
   test('noteFileNameFromTitle', () => {
-    setConfig({ slugifyCharacter: NoteWorkspace.SLUGIFY_NONE });
+    setConfig({ slugifyCharacter: NoteWorkspace.SLUGIFY_NONE, lowercaseNewNoteFilenames: true });
     expect(NoteWorkspace.noteFileNameFromTitle('Some Title')).toEqual('some title.md');
     expect(NoteWorkspace.noteFileNameFromTitle('Some Title ')).toEqual('some title.md');
+    setConfig({ slugifyCharacter: NoteWorkspace.SLUGIFY_NONE, lowercaseNewNoteFilenames: false });
+    expect(NoteWorkspace.noteFileNameFromTitle('Some Title')).toEqual('Some Title.md');
 
-    setConfig({ slugifyCharacter: '-' });
+    setConfig({ slugifyCharacter: '-', lowercaseNewNoteFilenames: true });
     expect(NoteWorkspace.noteFileNameFromTitle('Some " Title ')).toEqual('some-title.md');
     expect(NoteWorkspace.noteFileNameFromTitle('Šömè Țítlê')).toEqual('šömè-țítlê.md');
     expect(NoteWorkspace.noteFileNameFromTitle('題目')).toEqual('題目.md');
     expect(NoteWorkspace.noteFileNameFromTitle('Some \r \n Title')).toEqual('some-title.md');
+    setConfig({ slugifyCharacter: '-', lowercaseNewNoteFilenames: false });
+    expect(NoteWorkspace.noteFileNameFromTitle('Some " Title ')).toEqual('Some-Title.md');
 
-    setConfig({ slugifyCharacter: '_' });
+    setConfig({ slugifyCharacter: '_', lowercaseNewNoteFilenames: true });
     expect(NoteWorkspace.noteFileNameFromTitle('Some   Title ')).toEqual('some_title.md');
+    setConfig({ slugifyCharacter: '_', lowercaseNewNoteFilenames: false });
+    expect(NoteWorkspace.noteFileNameFromTitle('Some   Title ')).toEqual('Some_Title.md');
 
-    setConfig({ slugifyCharacter: '－' });
+    setConfig({ slugifyCharacter: '－', lowercaseNewNoteFilenames: true });
     expect(NoteWorkspace.noteFileNameFromTitle('Ｓｏｍｅ　Ｔｉｔｌｅ')).toEqual(
       'ｓｏｍｅ－ｔｉｔｌｅ.md'
     );
     expect(NoteWorkspace.noteFileNameFromTitle('Ｓｏｍｅ　Ｔｉｔｌｅ ')).toEqual(
       'ｓｏｍｅ－ｔｉｔｌｅ.md'
+    );
+    setConfig({ slugifyCharacter: '－', lowercaseNewNoteFilenames: false });
+    expect(NoteWorkspace.noteFileNameFromTitle('Ｓｏｍｅ　Ｔｉｔｌｅ ')).toEqual(
+      'Ｓｏｍｅ－Ｔｉｔｌｅ.md'
     );
   });
 });
@@ -133,14 +149,120 @@ describe('NoteWorkspace.rx', () => {
     expect('Some [[wiki-link.md].').not.toMatch(rx);
   });
 
-  test('rxTagNoAnchors', () => {
-    let rx = NoteWorkspace.rxTagNoAnchors();
+  test('rxTag', () => {
+    let rx = NoteWorkspace.rxTag();
+    // preceded by space:
     expect(('http://something/ something #draft middle.'.match(rx) || [])[0]).toEqual('#draft');
+    expect(('http://something/ something #draft/tag middle.'.match(rx) || [])[0]).toEqual('#draft/tag');
+    expect(('http://something/ something #draft/tag/id middle.'.match(rx) || [])[0]).toEqual('#draft/tag/id');
+    expect(('http://something/ something #draft /tag/id middle.'.match(rx) || [])[0]).toEqual('#draft');
     expect(('http://something/ something end #draft'.match(rx) || [])[0]).toEqual('#draft');
-    expect(('#draft start'.match(rx) || [])[0]).toEqual('#draft');
+    expect(('http://something/ something end #draft/id'.match(rx) || [])[0]).toEqual('#draft/id');
     expect(('http://something/ #draft.'.match(rx) || [])[0]).toEqual('#draft');
-    // TODO: should this match or not?
-    // expect('[site](http://something/#com).').not.toMatch(rx);
+    // preceded by comma:
+    expect((',#draft,'.match(rx) || [])[0]).toEqual('#draft');
+    expect((',#draft/id,'.match(rx) || [])[0]).toEqual('#draft/id');
+    // start of line:
+    expect(('#draft start'.match(rx) || [])[0]).toEqual('#draft');
+    expect(('#draft/id start'.match(rx) || [])[0]).toEqual('#draft/id');
+    // the character before the match needs to be a space or start of line:
+    expect('[site](http://something/#com).').not.toMatch(rx);
+    expect('[site](http://something/#com/id).').not.toMatch(rx);
+    expect('[site](https://something.com/?q=v#com).').not.toMatch(rx);
+    expect('[site](https://something.com/?q=v#com/id).').not.toMatch(rx);
+  });
+
+  test('rxBeginTag', () => {
+    let rx = NoteWorkspace.rxBeginTag();
+    // preceded by space:
+    expect((' #...'.match(rx) || [])[0]).toEqual('#');
+    expect((' #draft...'.match(rx) || [])[0]).toEqual('#');
+    // preceded by comma:
+    expect((',#...'.match(rx) || [])[0]).toEqual('#');
+    // start of line:
+    expect(('#...'.match(rx) || [])[0]).toEqual('#');
+    // the character before the match needs to be a space or start of line:
+    expect('https://something.com/?q=v#com').not.toMatch(rx);
+  });
+
+  test('rxMarkdownHyperlink', () => {
+    let rx = NoteWorkspace.rxMarkdownHyperlink();
+    // "regular" use of link:
+    expect(('Some link to [test](test.md).'.match(rx)|| [])[0]).toEqual('[test](test.md)');
+    // no description:
+    expect(('Some link to [](test.md).'.match(rx) || [])[0]).toEqual('[](test.md)');
+
+    // empty link:
+    expect('Some link to nowhere []().').not.toMatch(rx);
+
+    // link to a website:
+    expect('Some link to [google](https://google.com).').not.toMatch(rx);
+  });
+});
+
+describe('BibTeXCitations', () => {
+  test("rxBibTeX", () => {
+    let rx = BibTeXCitations.rxBibTeX();
+
+    // start of line
+    expect(("@reference".match(rx) || [])[0]).toEqual("@reference");
+    expect(("@author_title_2010".match(rx) || [])[0]).toEqual(
+      "@author_title_2010"
+    );
+
+    // preceded by space:
+    expect(
+      ("http://something/ something @ref middle.".match(rx) || [])[0]
+    ).toEqual("@ref");
+    expect(("http://something/ something end @ref".match(rx) || [])[0]).toEqual(
+      "@ref"
+    );
+
+    // preceded by comma:
+    expect((",@ref,".match(rx) || [])[0]).toEqual("@ref");
+
+    // at the end of sentence
+    expect(("some @reference. another".match(rx) || [])[0]).toEqual("@reference");
+
+    // at the end of string
+    expect(("some @reference.".match(rx) || [])[0]).toEqual("@reference");
+
+    // inside brackets with name supression
+    expect(("some [-@reference]".match(rx) || [])[0]).toEqual("@reference");
+
+    // inside brackets with name supression and semicolumn separator
+    expect(("some [;-@reference]".match(rx) || [])[0]).toEqual("@reference");
+
+    // inside brackets with name supression and preceded by space
+    expect(("some [ -@reference]".match(rx) || [])[0]).toEqual("@reference");
+
+    // inside brackets with name supression and preceded by space and semicolumn separator
+    expect(("some [; -@reference]".match(rx) || [])[0]).toEqual("@reference");
+
+    // inside brackets and preceded by space
+    expect(("some [ @reference]".match(rx) || [])[0]).toEqual("@reference");
+
+    // inside brackets and preceded by space and semicolumn separator
+    expect(("some [; @reference]".match(rx) || [])[0]).toEqual("@reference");
+
+    // inside brackets
+    expect(("some [@reference]".match(rx) || [])[0]).toEqual("@reference");
+
+    // inside brackets and preceded by semicolumn separator
+    expect(("some [;@reference]".match(rx) || [])[0]).toEqual("@reference");
+
+    // do not match email address
+    expect("name@domain.com").not.toMatch(rx);
+  });
+
+  test("references", async () => {
+    const refs = await BibTeXCitations.citations();
+    expect(refs).toEqual([
+      "clear_zettelkasten_2020",
+      "kleppmann_designing_2016",
+      "nagel_what_1974",
+      "turing_computing_1950"
+    ]);
   });
 });
 
@@ -150,7 +272,10 @@ line1 word1 word2
 ^ tags at line2 chars 15-19 and 21-32
 [[test.md]] <- link at line4, chars 0-11
 [[demo.md]] <- link at line5, chars 0-11
-#tag word`; // line 5, chars 0-3
+#tag word <- line 6, chars 0-3
+# [[]] [[ <- line 7, empty refs
+[](test-hyperlink.md) <- link at line8, chars 0-11
+[]() [](`; // line 9, empty refs
 
 describe('Note', () => {
   test('Note._rawRangesForWord', () => {
@@ -186,6 +311,16 @@ describe('Note', () => {
     ranges = Note.fromData(document)._rawRangesForWord(w);
     expect(ranges).toMatchObject([
       { start: { line: 2, character: 20 }, end: { line: 2, character: 32 } },
+    ]);
+    w = {
+      word: 'test-hyperlink.md',
+      hasExtension: true,
+      type: RefType.Hyperlink,
+      range: undefined,
+    };
+    ranges = Note.fromData(document)._rawRangesForWord(w);
+    expect(ranges).toMatchObject([
+      { start: {line: 8, character: 0}, end: {line: 8, character: 21} },
     ]);
   });
 

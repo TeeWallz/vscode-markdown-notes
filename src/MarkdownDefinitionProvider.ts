@@ -4,6 +4,7 @@ import { NoteWorkspace } from './NoteWorkspace';
 import { basename, dirname, join, resolve } from 'path';
 import { existsSync, writeFileSync } from 'fs';
 import { titleCaseFromFilename } from './utils';
+import { BibTeXCitations } from './BibTeXCitations';
 
 // Given a document and position, check whether the current word matches one of
 // this context: [[wiki-link]]
@@ -23,7 +24,10 @@ export class MarkdownDefinitionProvider implements vscode.DefinitionProvider {
     token: vscode.CancellationToken
   ) {
     const ref = getRefAt(document, position);
-    if (ref.type != RefType.WikiLink) {
+    if (ref.type == RefType.BibTeX) {
+      return await BibTeXCitations.location(ref.word);
+    }
+    if (ref.type != RefType.WikiLink && ref.type != RefType.Hyperlink) {
       return [];
     }
 
@@ -32,7 +36,7 @@ export class MarkdownDefinitionProvider implements vscode.DefinitionProvider {
 
     // else, create the file
     if (files.length == 0) {
-      const path = MarkdownDefinitionProvider.createMissingNote(ref);
+      const path = await MarkdownDefinitionProvider.createMissingNote(ref);
       if (path !== undefined) {
         files.push(vscode.Uri.file(path));
       }
@@ -94,7 +98,7 @@ export class MarkdownDefinitionProvider implements vscode.DefinitionProvider {
     return files;
   }
 
-  static createMissingNote = (ref: Ref): string | undefined => {
+  static  createMissingNote = async (ref: Ref): Promise<string | undefined> => {
     // don't create new files if ref is a Tag
     if (ref.type != RefType.WikiLink) {
       return;
@@ -110,8 +114,8 @@ export class MarkdownDefinitionProvider implements vscode.DefinitionProvider {
         );
         return;
       }
-      const title = titleCaseFromFilename(ref.word);
-      const { filepath, fileAlreadyExists } = NoteWorkspace.createNewNoteFile(title);
+      const title = NoteWorkspace.stripExtension(ref.word);
+      const { filepath, fileAlreadyExists } = await NoteWorkspace.createNewNoteFile(title);
       return filepath;
     }
   };

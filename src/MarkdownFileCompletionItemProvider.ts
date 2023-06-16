@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
-import { Ref, RefType, getRefAt } from './Ref';
+import { RefType, getRefOrEmptyRefAt } from './Ref';
 import { NoteWorkspace } from './NoteWorkspace';
 import { NoteParser } from './NoteParser';
+import { BibTeXCitations } from './BibTeXCitations';
 
 class MarkdownFileCompletionItem extends vscode.CompletionItem {
   fsPath?: string;
@@ -16,9 +17,10 @@ class MarkdownFileCompletionItem extends vscode.CompletionItem {
   }
 }
 // Given a document and position, check whether the current word matches one of
-// these 2 contexts:
+// these 3 contexts:
 // 1. [[wiki-links]]
 // 2. #tags
+// 3. @bibtext-reference
 //
 // If so, provide appropriate completion items from the current workspace
 export class MarkdownFileCompletionItemProvider implements vscode.CompletionItemProvider {
@@ -26,7 +28,7 @@ export class MarkdownFileCompletionItemProvider implements vscode.CompletionItem
     document: vscode.TextDocument,
     position: vscode.Position
   ) {
-    const ref = getRefAt(document, position);
+    const ref = getRefOrEmptyRefAt(document, position);
     switch (ref.type) {
       case RefType.Null:
         return [];
@@ -48,7 +50,14 @@ export class MarkdownFileCompletionItemProvider implements vscode.CompletionItem
             item.range = ref.range;
           }
           return item;
-        }).filter(item => item.insertText !== ref.word);
+        });
+      case RefType.BibTeX:
+        return (await BibTeXCitations.citations()).map((r) => {
+          let kind = vscode.CompletionItemKind.File;
+          let label = `${r}`; // cast to a string
+          let item = new vscode.CompletionItem(label, kind);
+          return item;
+        });
       default:
         return [];
     }
