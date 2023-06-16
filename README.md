@@ -1,5 +1,7 @@
 # Zettelkasten Markdown Notes for VS Code
 
+This is a fork of [Zettelkasten Markdown Notes for VS Code](https://github.com/maxedmands/vscode-markdown-notes), that has merged upstream commits and custom Zettelkasten date ids. This was implemented inititally as the original codebase had 0-based months and didn't use seconds for the ID.
+
 This package is a fork of the excellent [vscode-markdown-notes](https://marketplace.visualstudio.com/items?itemName=kortina.vscode-markdown-notes) package, made to be a bit more compatible for Zettelkasten workflows introduced by apps like Zettlr or
 The Archive.
 
@@ -63,6 +65,8 @@ You can bind this to a keyboard shortcut by adding to your `keybindings.json`:
         "command": "vscodeMarkdownNotes.generateNewId",
     },
 ```
+
+This ID format can be changed via the `vscodeMarkdownNotes.zettelkastenIdDateFormat` setting, using a [strftime](https://www.npmjs.com/package/strftime) date string.
 
 ### Screenshots
 
