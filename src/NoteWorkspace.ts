@@ -62,6 +62,7 @@ type Config = {
   newNoteDirectory: string;
   previewLabelStyling: PreviewLabelStyling;
   previewShowFileExtension: boolean;
+  zettelkastenIdDateFormat: string;
 };
 // This class contains:
 // 1. an interface to some of the basic user configurable settings or this extension
@@ -100,6 +101,7 @@ export class NoteWorkspace {
     newNoteDirectory: NoteWorkspace.NEW_NOTE_SAME_AS_ACTIVE_NOTE,
     previewLabelStyling: PreviewLabelStyling.brackets,
     previewShowFileExtension: false,
+    zettelkastenIdDateFormat: '%Y%m%d%H%M%S'
   };
   static DOCUMENT_SELECTOR = [
     { scheme: 'file', language: 'markdown' },
@@ -135,6 +137,7 @@ export class NoteWorkspace {
       newNoteDirectory: c.get('newNoteDirectory') as string,
       previewLabelStyling: c.get('previewLabelStyling') as PreviewLabelStyling,
       previewShowFileExtension: c.get('previewShowFileExtension') as boolean,
+      zettelkastenIdDateFormat: c.get('zettelkastenIdDateFormat') as string
     };
   }
 
@@ -188,6 +191,10 @@ export class NoteWorkspace {
 
   static previewShowFileExtension(): boolean {
     return this.cfg().previewShowFileExtension;
+  }
+
+  static zettelkastenIdDateFormat(): string {
+    return this.cfg().zettelkastenIdDateFormat;
   }
 
   static rxTag(): RegExp {

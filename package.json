@@ -182,6 +182,11 @@
           "type": "string",
           "default": "",
           "description": "Absolute or current workspace relative path to a BibTeX file that will provide autocompletion for @bibtex-citations."
+        },
+        "vscodeMarkdownNotes.zettelkastenIdDateFormat": {
+          "type": "string",
+          "default": "%Y%m%d%H%M%S",
+          "description": "Format string for the date part of the Zettelkasten ID. See https://www.npmjs.com/package/strftime for details."
         }
       }
     },
@@ -211,7 +216,8 @@
   },
   "dependencies": {
     "@thomaskoppelaar/markdown-it-wikilinks": "^1.3.0",
-    "github-slugger": "^1.3.0"
+    "github-slugger": "^1.3.0",
+    "strftime": "^0.10.2"
   },
   "devDependencies": {
     "@babel/core": "^7.10.1",
@@ -222,9 +228,12 @@
     "@types/jest": "^25.2.3",
     "@types/jest-cli": "^24.3.0",
     "@types/node": "^11.9.0",
+    "@types/strftime": "^0.9.4",
     "@types/vscode": "^1.32.0",
     "@typescript-eslint/eslint-plugin": "^2.28.0",
     "@typescript-eslint/parser": "^2.28.0",
+    "@vscode/test-electron": "^2.3.3",
+    "@vscode/vsce": "^2.19.0",
     "babel-jest": "^26.6.3",
     "babylon": "^6.18.0",
     "eslint": "^6.8.0",
@@ -238,8 +247,6 @@
     "typescript": "^3.8.3",
     "unified": "^9.0.0",
     "unist-util-find": "^1.0.2",
-    "unist-util-visit": "^2.0.2",
-    "@vscode/vsce": "^2.19.0",
-    "@vscode/test-electron": "^2.3.3"
+    "unist-util-visit": "^2.0.2"
   }
 }

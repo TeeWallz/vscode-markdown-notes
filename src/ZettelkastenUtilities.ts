@@ -1,17 +1,11 @@
+import strftime = require('strftime');
+import { NoteWorkspace } from './NoteWorkspace';
 import * as vscode from 'vscode';
 
 export default class ZettelkastenUtilities {
   static generateId() {
     const date = new Date();
-    const padNumber = (val: number, len: number) => val.toString().padStart(len, '0');
-    const id = [
-      padNumber(date.getFullYear(), 4),
-      padNumber(date.getMonth()+1, 2),
-      padNumber(date.getDate(), 2),
-      padNumber(date.getHours(), 2),
-      padNumber(date.getMinutes(), 2),
-      padNumber(date.getSeconds(), 2),
-    ].join('');
+    const id = strftime(NoteWorkspace.zettelkastenIdDateFormat(), date);
     return id;
   }
 
