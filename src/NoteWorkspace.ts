@@ -331,7 +331,7 @@ export class NoteWorkspace {
   // `right` to be the ref word [[wiki-link]]
   static noteNamesFuzzyMatch(left: string, right: string): boolean {
     // Support The Archive / Zettlr-style IDs
-    const id = right.match(/^\d{12}$/);
+    const id = right.split("_");
     if (id) { return left.includes(id[0]); }
 
     return (

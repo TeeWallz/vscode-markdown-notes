@@ -12,7 +12,7 @@ class MarkdownFileCompletionItem extends vscode.CompletionItem {
     this.fsPath = fsPath;
 
     // Support The Archive / Zettlr-style IDs
-    const id = label.match(/^\d{12}/);
+    const id = label.split("_");
     if (id) { this.insertText = id[0]; }
   }
 }
