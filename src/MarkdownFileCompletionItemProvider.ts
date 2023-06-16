@@ -12,8 +12,8 @@ class MarkdownFileCompletionItem extends vscode.CompletionItem {
     this.fsPath = fsPath;
 
     // Support The Archive / Zettlr-style IDs
-    const id = label.split("_");
-    if (id) { this.insertText = id[0]; }
+    const id = label.split(NoteWorkspace.slugifyChar());
+    if (id && id.length > 1) { this.insertText = id[0]; }
   }
 }
 // Given a document and position, check whether the current word matches one of
