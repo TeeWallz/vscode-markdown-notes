@@ -5,6 +5,7 @@ import { basename, dirname, join, resolve } from 'path';
 import { existsSync, writeFileSync } from 'fs';
 import { titleCaseFromFilename } from './utils';
 import { BibTeXCitations } from './BibTeXCitations';
+import { NoteParser } from './NoteParser';
 
 // Given a document and position, check whether the current word matches one of
 // this context: [[wiki-link]]
@@ -33,15 +34,34 @@ export class MarkdownDefinitionProvider implements vscode.DefinitionProvider {
 
     let files: Array<vscode.Uri> = [];
     files = await MarkdownDefinitionProvider.filesForWikiLinkRef(ref, document);
-
+    
     // else, create the file
     if (files.length == 0) {
-      const path = await MarkdownDefinitionProvider.createMissingNote(ref);
-      if (path !== undefined) {
-        files.push(vscode.Uri.file(path));
+      const { filepath, zettelId } = await MarkdownDefinitionProvider.createMissingNote(ref);
+      if (filepath !== undefined) {
+        // Get the range of the current word
+        const newRef = getRefAt(document, position);
+        files.push(vscode.Uri.file(filepath));
+        
+        // If we created a new file, replace the wiki-link with the zettelId
+        // and open the new file
+        if (newRef.range) {
+          // 
+          let editor = vscode.window.activeTextEditor;
+          editor!.edit(editBuilder => {
+            editBuilder.replace(newRef.range!, zettelId);
+          });
+
+          vscode.workspace.openTextDocument(filepath).then(doc => {
+            vscode.window.showTextDocument(doc);
+          });
+
+        }
+
+
+
       }
     }
-
     const p = new vscode.Position(0, 0);
     return files.map((f) => new vscode.Location(f, p));
   }
@@ -98,7 +118,7 @@ export class MarkdownDefinitionProvider implements vscode.DefinitionProvider {
     return files;
   }
 
-  static  createMissingNote = async (ref: Ref): Promise<string | undefined> => {
+  static  createMissingNote = async (ref: Ref) => {
     // don't create new files if ref is a Tag
     if (ref.type != RefType.WikiLink) {
       return;
@@ -115,8 +135,11 @@ export class MarkdownDefinitionProvider implements vscode.DefinitionProvider {
         return;
       }
       const title = NoteWorkspace.stripExtension(ref.word);
-      const { filepath, fileAlreadyExists } = await NoteWorkspace.createNewNoteFile(title);
-      return filepath;
+      const { filepath, fileAlreadyExists, zettelId } = await NoteWorkspace.createNewNoteFile(title);
+      return {
+        filepath: filepath,
+        zettelId: zettelId
+      };
     }
   };
 }

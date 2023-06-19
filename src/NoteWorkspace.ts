@@ -574,6 +574,7 @@ export class NoteWorkspace {
     return {
       filepath: filepath,
       fileAlreadyExists: fileAlreadyExists,
+      zettelId: zettelId,
     };
   }
 

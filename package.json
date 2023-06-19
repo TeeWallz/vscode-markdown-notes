@@ -2,7 +2,7 @@
   "name": "vscode-zettel-markdown-notes",
   "displayName": "Markdown Notes (Zettelkasten Redux)",
   "description": "Navigate notes with [[wiki-links]], backlinks, #tags and @bibtex-citations (like Bear, Roam, etc). Automatically create notes from new inline [[wiki-links]]. Use Peek Definition to preview linked notes.",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "publisher": "teewallz",
   "repository": {
     "url": "https://github.com/TeeWallz/vscode-markdown-notes",
