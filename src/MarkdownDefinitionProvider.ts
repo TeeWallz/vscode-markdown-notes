@@ -37,11 +37,11 @@ export class MarkdownDefinitionProvider implements vscode.DefinitionProvider {
     
     // else, create the file
     if (files.length == 0) {
-      const { filepath, zettelId } = await MarkdownDefinitionProvider.createMissingNote(ref);
-      if (filepath !== undefined) {
+      const newNote = await MarkdownDefinitionProvider.createMissingNote(ref);
+      if (newNote!.filepath !== undefined) {
         // Get the range of the current word
         const newRef = getRefAt(document, position);
-        files.push(vscode.Uri.file(filepath));
+        files.push(vscode.Uri.file(newNote!.filepath));
         
         // If we created a new file, replace the wiki-link with the zettelId
         // and open the new file
@@ -49,10 +49,10 @@ export class MarkdownDefinitionProvider implements vscode.DefinitionProvider {
           // 
           let editor = vscode.window.activeTextEditor;
           editor!.edit(editBuilder => {
-            editBuilder.replace(newRef.range!, zettelId);
+            editBuilder.replace(newRef.range!, newNote!.zettelId);
           });
 
-          vscode.workspace.openTextDocument(filepath).then(doc => {
+          vscode.workspace.openTextDocument(newNote!.filepath).then(doc => {
             vscode.window.showTextDocument(doc);
           });
 
